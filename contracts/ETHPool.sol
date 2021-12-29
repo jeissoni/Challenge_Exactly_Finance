@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.0;
 
+import "hardhat/console.sol";
+
+
 contract ETHPool {
 
     //state variable
 
     uint256 public ultimaFechaRecompensa;
     uint256 public totalRecompensa;
+    uint256 public totalDespositosUsuarios;
 
     struct detalleUsuario{
         uint256 deposito;
@@ -38,13 +42,16 @@ contract ETHPool {
 
     constructor(){
         totalRecompensa = 0;
-        ultimaFechaRecompensa = 0;
+        ultimaFechaRecompensa = block.timestamp;
+        totalDespositosUsuarios = 0;
         usuariosEquipo[msg.sender] = true;
     }
 
     //funtion
 
-    function depositarGananciasEquipo() soloEquipo pasoUnaSemana public payable {
+    function depositarGananciasEquipo() soloEquipo public payable {
+        require(block.timestamp >= (ultimaFechaRecompensa + 1 weeks ), "No ha pasado una semana!");
+
         uint _fechaAnterior =ultimaFechaRecompensa;
         uint _totalRecompensa = totalRecompensa;
         totalRecompensa = msg.value;
@@ -58,20 +65,13 @@ contract ETHPool {
         uint _ethAnterior = 0;
         uint _fechaAnterior = 0;
 
-        //Es la primera vez?
-        if (usuarios[msg.sender].deposito == 0){     
+        _ethAnterior = usuarios[msg.sender].deposito;
+        _fechaAnterior = usuarios[msg.sender].fechaDeposito; 
+       
+        usuarios[msg.sender].deposito += msg.value;
+        usuarios[msg.sender].fechaDeposito = block.timestamp;       
 
-            _ethAnterior = usuarios[msg.sender].deposito;
-            _fechaAnterior = usuarios[msg.sender].fechaDeposito; 
-            
-            usuarios[msg.sender].deposito = _ethAnterior + msg.value;
-            usuarios[msg.sender].fechaDeposito = block.timestamp;
-
-        }else{
-
-            usuarios[msg.sender].deposito = msg.value;
-            usuarios[msg.sender].fechaDeposito = block.timestamp;
-        }
+        totalDespositosUsuarios += msg.value;
 
         emit depositoEthUsuario(msg.sender, _ethAnterior, _fechaAnterior);
     }
@@ -82,14 +82,16 @@ contract ETHPool {
         require(usuarios[msg.sender].deposito > 0 , "EL usuarion no a depositado");
         require(usuarios[msg.sender].fechaDeposito > ultimaFechaRecompensa , "No deposito a tiempo para la recompensa actual");
 
-        uint256 porcentajeGanancia = (usuarios[msg.sender].deposito * 100) / totalRecompensa;
+        uint256 porcentajePool = (usuarios[msg.sender].deposito * 100) / totalDespositosUsuarios;       
 
-        uint256 ganaciasMasDeposito = usuarios[msg.sender].deposito + (totalRecompensa * porcentajeGanancia);
+        uint256 ganaciasMasDeposito = usuarios[msg.sender].deposito + (totalRecompensa * porcentajePool);
+
+        totalDespositosUsuarios -= usuarios[msg.sender].deposito;
+
+        totalRecompensa -= ganaciasMasDeposito;
 
         usuarios[msg.sender].deposito = 0;
-
-        totalRecompensa = totalRecompensa - ganaciasMasDeposito;
-
+        
         (bool success,) = payable(msg.sender).call{value: ganaciasMasDeposito} ("");
 
         require(success, "Transfer failed");
