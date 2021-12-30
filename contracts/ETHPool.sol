@@ -10,7 +10,7 @@ contract ETHPool {
 
     uint256 public ultimaFechaRecompensa;
     uint256 public totalRecompensa;
-    uint256 public totalDespositosUsuarios;
+    uint256 public totalDepositosUsuarios;
 
     struct detalleUsuario{
         uint256 deposito;
@@ -33,17 +33,17 @@ contract ETHPool {
         _;
     }
 
-    modifier pasoUnaSemana(){
-        require(block.timestamp >= (ultimaFechaRecompensa + 1 weeks ), "No ha pasado una semana!");
-        _;
-    }
+    // modifier pasoUnaSemana(){
+    //     require(block.timestamp >= (ultimaFechaRecompensa + 1 weeks ), "No ha pasado una semana!");
+    //     _;
+    // }
 
     //constructor
 
     constructor(){
         totalRecompensa = 0;
         ultimaFechaRecompensa = block.timestamp;
-        totalDespositosUsuarios = 0;
+        totalDepositosUsuarios = 0;
         usuariosEquipo[msg.sender] = true;
     }
 
@@ -71,7 +71,7 @@ contract ETHPool {
         usuarios[msg.sender].deposito += msg.value;
         usuarios[msg.sender].fechaDeposito = block.timestamp;       
 
-        totalDespositosUsuarios += msg.value;
+        totalDepositosUsuarios += msg.value;
 
         emit depositoEthUsuario(msg.sender, _ethAnterior, _fechaAnterior);
     }
@@ -80,15 +80,16 @@ contract ETHPool {
     function retirarDepositoMasGanancias() public {
         require(totalRecompensa > 0, "No hay recompensas por entregar");
         require(usuarios[msg.sender].deposito > 0 , "EL usuarion no a depositado");
-        require(usuarios[msg.sender].fechaDeposito > ultimaFechaRecompensa , "No deposito a tiempo para la recompensa actual");
+        require(usuarios[msg.sender].fechaDeposito < ultimaFechaRecompensa , "No deposito a tiempo para la recompensa actual");
 
-        uint256 porcentajePool = (usuarios[msg.sender].deposito * 100) / totalDespositosUsuarios;       
+        //porcentaje de msg.sender respecto al total depositado por los usuarios
+        uint256 porcentajePool = (usuarios[msg.sender].deposito) / totalDepositosUsuarios;       
 
         uint256 ganaciasMasDeposito = usuarios[msg.sender].deposito + (totalRecompensa * porcentajePool);
 
-        totalDespositosUsuarios -= usuarios[msg.sender].deposito;
+        totalDepositosUsuarios -= usuarios[msg.sender].deposito;
 
-        totalRecompensa -= ganaciasMasDeposito;
+        totalRecompensa -= totalRecompensa * porcentajePool;
 
         usuarios[msg.sender].deposito = 0;
         
