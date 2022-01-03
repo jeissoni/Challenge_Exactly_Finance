@@ -2,6 +2,15 @@
 import { ethers } from "hardhat";
 import { expect } from 'chai'
 import { BigNumber } from "ethers"
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+
+
+function getRandomArbitrary(min:number , max : number) {
+    
+    return Math.floor(Math.random() * max) + min;
+}
+
+
 
 describe("test of ETHPools", function () {
 
@@ -108,28 +117,54 @@ describe("test of ETHPools", function () {
                 await expect(ETHPoolDeploy.connect(user1).retirarDepositoMasGanancias()).to.be.revertedWith("No deposito a tiempo para la recompensa actual")                                
             })
 
-            it("Restringir si el usuario deposito despues del ultimo deposito del equipo", async () => {    
-                const { owner, user1, user2, user3, user4, ETHPoolDeploy, ganaciasDepositadas } = await dataETHPool()
+            it("Entrega de depositos", async () => {    
+                const { owner, user1, user2, user3, user4, ETHPoolDeploy } = await dataETHPool()
+                         
+                interface userDeposito {
+                    user: SignerWithAddress;
+                    value: number;
+                }
 
-                var listUser = [user1, user2, user3, user4]
+                var totalRecompensa : number = 10 ;
 
-                listUser.forEach(user => {
+                var userDepositoArray: userDeposito[] = new Array();
+
+                var userArray : SignerWithAddress[] = [user1,user2,user3,user4] 
+
+                var totalDespositoUsuario : number = 0
+
+                userArray.forEach( item => {
                     
-                    const randomNumber = Math.random() * (20 - 1) + 1 
-                    const ganaciasDepositadas: BigNumber = ethers.utils.parseEther(randomNumber.toString())
-                    ETHPoolDeploy.connect(user).depositarEthUsuario({ value: ganaciasDepositadas })
+                    var depositoUsuario : number =  getRandomArbitrary(1,10)
 
-                })
+                    userDepositoArray.push({user:item , value : depositoUsuario})
+                    
+                    ETHPoolDeploy.connect(item).depositarEthUsuario({ value:  ethers.utils.parseEther(depositoUsuario.toString()) })
+
+                    totalDespositoUsuario += depositoUsuario
+                });          
                 
-
-                await ETHPoolDeploy.connect(user1).depositarEthUsuario({ value: ganaciasDepositadas })
 
 
                 await ethers.provider.send("evm_increaseTime", [(60 * 60 * 24 * 7) + 1]) 
-                await ETHPoolDeploy.connect(owner).depositarGananciasEquipo({ value: ganaciasDepositadas })
+                await ETHPoolDeploy.connect(owner).depositarGananciasEquipo({ value: ethers.utils.parseEther(totalRecompensa.toString()) })
 
 
-                await expect(ETHPoolDeploy.connect(user1).retirarDepositoMasGanancias()).to.be.revertedWith("No deposito a tiempo para la recompensa actual")                                
+                userDepositoArray.forEach(async(item) =>  {
+
+                   
+
+                    var porcentajePool : number = item.value / totalDespositoUsuario
+
+                    var ganaciasMasDeposito :number = item.value + (totalRecompensa * porcentajePool)
+
+                    await ETHPoolDeploy.connect(item.user).retirarDepositoMasGanancias()
+
+                    expect(ethers.utils.parseEther(ganaciasMasDeposito.toString())).to.equal(await ethers.provider.getBalance(item.user.address))
+
+                    
+                })
+
             })
 
 
