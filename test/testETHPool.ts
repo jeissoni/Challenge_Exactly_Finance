@@ -122,49 +122,76 @@ describe("test of ETHPools", function () {
                          
                 interface userDeposito {
                     user: SignerWithAddress;
-                    value: number;
+                    value: BigNumber;
                 }
 
-                var totalRecompensa : number = 10 ;
+                const eth =  ethers.constants.WeiPerEther;
+
+                var totalRecompensa : BigNumber = ethers.utils.parseEther("10")
 
                 var userDepositoArray: userDeposito[] = new Array();
 
                 var userArray : SignerWithAddress[] = [user1,user2,user3,user4] 
 
-                var totalDespositoUsuario : number = 0
-
-                userArray.forEach( item => {
-                    
-                    var depositoUsuario : number =  getRandomArbitrary(1,10)
-
-                    userDepositoArray.push({user:item , value : depositoUsuario})
-                    
-                    ETHPoolDeploy.connect(item).depositarEthUsuario({ value:  ethers.utils.parseEther(depositoUsuario.toString()) })
-
-                    totalDespositoUsuario += depositoUsuario
-                });          
-                
+                var totalDespositoUsuario : BigNumber = ethers.constants.Zero; //0
+             
 
 
-                await ethers.provider.send("evm_increaseTime", [(60 * 60 * 24 * 7) + 1]) 
-                await ETHPoolDeploy.connect(owner).depositarGananciasEquipo({ value: ethers.utils.parseEther(totalRecompensa.toString()) })
-
-
-                userDepositoArray.forEach(async(item) =>  {
-
+                // deposito de usuario, cantidad de ETH al azar 
+                // valor entre 1 y 10 ETH
+                for(const item of userArray){
+                    var depositoUsuario : BigNumber = ethers.utils.parseEther(
+                        getRandomArbitrary(1,10).toString())
                    
+                    var tx = await ETHPoolDeploy.connect(item).depositarEthUsuario({ 
+                        value:  depositoUsuario.toString()
+                    })                 
 
-                    var porcentajePool : number = item.value / totalDespositoUsuario
+                    userDepositoArray.push({
+                        user:item ,
+                        value :depositoUsuario,
+                    })                    
 
-                    var ganaciasMasDeposito :number = item.value + (totalRecompensa * porcentajePool)
+                    totalDespositoUsuario = totalDespositoUsuario.add(depositoUsuario)
+                }             
 
-                    await ETHPoolDeploy.connect(item.user).retirarDepositoMasGanancias()
+               
+                // deposito del la recompensa por parte del equipo
+                await ethers.provider.send("evm_increaseTime", [(60 * 60 * 24 * 7) + 1]) 
 
-                    expect(ethers.utils.parseEther(ganaciasMasDeposito.toString())).to.equal(await ethers.provider.getBalance(item.user.address))
+                await ETHPoolDeploy.connect(owner).depositarGananciasEquipo({ 
+                    value: totalRecompensa.toString() })
 
+
+
+                // retiro de los usuarios 
+                for (const item of userDepositoArray){
                     
-                })
+                    var porcentajePool : BigNumber = item.value.mul(eth).div(totalDespositoUsuario)                  
 
+                    var balanceUserAntes = await ethers.provider.getBalance(item.user.address)
+
+                    var ganaciasMasDeposito : BigNumber =
+                    item.value.add(totalRecompensa.mul(porcentajePool).div(eth))     
+
+                    var tx = await ETHPoolDeploy.connect(item.user).retirarDepositoMasGanancias()
+
+                    totalDespositoUsuario = totalDespositoUsuario.sub(item.value)
+
+                    totalRecompensa = totalRecompensa.sub(totalRecompensa.mul(porcentajePool).div(eth))
+
+                    const gasUsed :BigNumber = (await tx.wait()).gasUsed
+                    const gasPrice : BigNumber = tx.gasPrice
+                    var gasCost : BigNumber = gasUsed.mul(gasPrice)
+
+                    var balanceUsuario = await ethers.provider.getBalance(item.user.address)
+
+                    balanceUserAntes = balanceUserAntes.add(ganaciasMasDeposito.sub(gasCost))                 
+
+                    expect(balanceUserAntes).to.equal(balanceUsuario)
+
+                }
+               
             })
 
 
