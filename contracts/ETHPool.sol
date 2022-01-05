@@ -82,17 +82,16 @@ contract ETHPool {
         require(usuarios[msg.sender].deposito > 0 , "EL usuarion no a depositado");
         require(usuarios[msg.sender].fechaDeposito < ultimaFechaRecompensa , "No deposito a tiempo para la recompensa actual");
 
-        //porcentaje de msg.sender respecto al total depositado por los usuarios
-        uint256 porcentajePool = (usuarios[msg.sender].deposito) / totalDepositosUsuarios;       
+        uint256 porcentajePool = (usuarios[msg.sender].deposito * 1 ether) / totalDepositosUsuarios;    
 
-        uint256 ganaciasMasDeposito = usuarios[msg.sender].deposito + (totalRecompensa * porcentajePool);
+        uint256 ganaciasMasDeposito = usuarios[msg.sender].deposito + (totalRecompensa * porcentajePool)/1 ether;     
 
         totalDepositosUsuarios -= usuarios[msg.sender].deposito;
 
-        totalRecompensa -= totalRecompensa * porcentajePool;
+        totalRecompensa = totalRecompensa - (totalRecompensa * porcentajePool) / 1 ether;
 
-        usuarios[msg.sender].deposito = 0;
-        
+        usuarios[msg.sender].deposito = 0;     
+
         (bool success,) = payable(msg.sender).call{value: ganaciasMasDeposito} ("");
 
         require(success, "Transfer failed");
