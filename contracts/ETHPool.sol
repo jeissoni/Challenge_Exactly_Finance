@@ -46,36 +46,28 @@ contract ETHPool {
             block.timestamp > (ultimaFechaRecompensa + 1 weeks),
             "No ha pasado una semana!"
         );
-
-        uint256 _fechaAnterior = ultimaFechaRecompensa;
-        uint256 _totalRecompensa = totalRecompensa;
-        totalRecompensa = msg.value;
+        
+        totalRecompensa += msg.value;
         ultimaFechaRecompensa = block.timestamp;
         emit DepositoGananciasEquipo(
             msg.sender,
-            _totalRecompensa,
-            _fechaAnterior
+            msg.value,
+            block.timestamp
         );
     }
 
     function depositarEthUsuario() public payable {
-        uint256 _ethAnterior = 0;
-        uint256 _fechaAnterior = 0;
-
-        _ethAnterior = usuarios[msg.sender].deposito;
-        _fechaAnterior = usuarios[msg.sender].fechaDeposito;
-
+      
         usuarios[msg.sender].deposito += msg.value;
         usuarios[msg.sender].fechaDeposito = block.timestamp;
 
         totalDepositosUsuarios += msg.value;
 
-        emit DepositoEthUsuario(msg.sender, _ethAnterior, _fechaAnterior);
+        emit DepositoEthUsuario(msg.sender, msg.value,  block.timestamp);
     }
 
     function retirarDepositoMasGanancias() public {
-        //require(totalRecompensa > 0, "No hay recompensas por entregar");
-        //require(usuarios[msg.sender].fechaDeposito < ultimaFechaRecompensa , "No deposito a tiempo para la recompensa actual");
+      
         require(
             usuarios[msg.sender].deposito > 0,
             "EL usuarion no a depositado"
