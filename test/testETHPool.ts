@@ -19,248 +19,252 @@ describe("test of ETHPools", function () {
         const [owner, user1, user2, user3, user4] = await ethers.getSigners();
         const ETHPoolFactory = await ethers.getContractFactory("ETHPool");
         const ETHPoolDeploy = await ETHPoolFactory.deploy();
-        const ganaciasDepositadas: BigNumber = ethers.utils.parseEther("10")
+        const earningsDeposited: BigNumber = ethers.utils.parseEther("10")
 
 
         return {
             owner,
             user1, user2, user3, user4,
             ETHPoolDeploy,
-            ganaciasDepositadas
+            earningsDeposited
         }
     }
 
-    describe("test funcionalidad del equipo", function () {
-        it('La cuenta que despliega es la cuenta del equipo', async () => {
+    describe("Test team options", function () {
+        
+        it('The account you display is the team account', async () => {
             const { owner, user1, ETHPoolDeploy } = await dataETHPool()
 
-            const esOwnerEquipo: boolean = await ETHPoolDeploy.usuariosEquipo(owner.address)
-            const esUser1Equipo: boolean = await ETHPoolDeploy.usuariosEquipo(user1.address)
+            const isTeam: boolean = await ETHPoolDeploy.usersTeam(owner.address)
+            const isUser: boolean = await ETHPoolDeploy.usersTeam(user1.address)
 
-            expect(esOwnerEquipo).to.equal(true)
-            expect(esUser1Equipo).to.equal(false)
+            expect(isTeam).to.equal(true)
+            expect(isUser).to.equal(false)
         })
 
-        it('El equipo NO puede depositar antes de una semana', async () => {
-            const { ETHPoolDeploy, ganaciasDepositadas } = await dataETHPool()
 
-            await expect(ETHPoolDeploy.depositarGananciasEquipo({ value: ganaciasDepositadas })).to.be.revertedWith("No ha pasado una semana!")
+        it('The team CANNOT deposit before one week', async () => {
+            const { ETHPoolDeploy, earningsDeposited } = await dataETHPool()
+
+            await expect(ETHPoolDeploy.depositRewardTeam({ value: earningsDeposited })).to.be.revertedWith("It hasn't been a week")
         })
 
-        it('El equipo SI puede depositar despues de una semana', async () => {
-            const { ETHPoolDeploy, ganaciasDepositadas } = await dataETHPool()
+
+        it('The team can deposit after one week', async () => {
+            const { ETHPoolDeploy, earningsDeposited } = await dataETHPool()
 
             await ethers.provider.send("evm_increaseTime", [(60 * 60 * 24 * 7) + 1])
 
-            await ETHPoolDeploy.depositarGananciasEquipo({ value: ganaciasDepositadas })
+            await ETHPoolDeploy.depositRewardTeam({ value: earningsDeposited })
 
-            const ganaciasContrato: BigNumber = await ETHPoolDeploy.totalRecompensa()
+            const reward: BigNumber = await ETHPoolDeploy.totalReward()
 
-            expect(ganaciasDepositadas).to.equal(ganaciasContrato)
+            expect(earningsDeposited).to.equal(reward)
         })
     })
 
 
-    describe("test funcionalidad de usuarios", function () {
+    describe("User functionality test", function () {
 
 
-        describe("Depositar", function () {
-            it("Se puede depositar por los usuarios", async () => {
+        describe("Deposit", function () {
+            it("Can be deposited by users", async () => {
 
                 const { user1, ETHPoolDeploy } = await dataETHPool()
 
-                const depositoUsuario: BigNumber = ethers.utils.parseEther("10")
+                const userdeposit : BigNumber = ethers.utils.parseEther("10")
 
-                const antesTotalDepositosUsuarios = await ETHPoolDeploy.totalDepositosUsuarios()
+                const beforeTotalUsersDeposites = await ETHPoolDeploy.totalUserDeposits()
 
-                const tx = await ETHPoolDeploy.connect(user1).depositarEthUsuario({ value: depositoUsuario })
+                const tx = await ETHPoolDeploy.connect(user1).depositEthUser({ value: userdeposit })
 
                 const timestamp = (await ethers.provider.getBlock(tx.blockNumber)).timestamp;
 
-                var depositoUsuarioContrato = await ETHPoolDeploy.usuarios(user1.address)
+                var depositUser = await ETHPoolDeploy.users(user1.address)
 
-                expect(depositoUsuarioContrato.deposito).to.equal(depositoUsuario)
-                expect(depositoUsuarioContrato.fechaDeposito).to.equal(timestamp)
-                expect(await ETHPoolDeploy.totalDepositosUsuarios()).to.equal(antesTotalDepositosUsuarios + depositoUsuario)
+                expect(depositUser.deposit).to.equal(userdeposit)
+                expect(depositUser.dateDeposit).to.equal(timestamp)
+                expect(await ETHPoolDeploy.totalUserDeposits()).to.equal(userdeposit)
             })
         })
 
 
 
-        describe("Retirar", function () {         
+        describe("Withdra", function () {         
 
-            it("Restringir si el usuario no ha depositado nada", async () => {
-                const { owner, user1, ETHPoolDeploy, ganaciasDepositadas } = await dataETHPool()
+            it("Restrict if user has not deposited anything", async () => {
+                const { owner, user1, ETHPoolDeploy, earningsDeposited } = await dataETHPool()
 
                 await ethers.provider.send("evm_increaseTime", [(60 * 60 * 24 * 7) + 1])
-                await ETHPoolDeploy.connect(owner).depositarGananciasEquipo({ value: ganaciasDepositadas })
+                await ETHPoolDeploy.connect(owner).depositRewardTeam({ value: earningsDeposited })
 
-                await expect(ETHPoolDeploy.connect(user1).retirarDepositoMasGanancias()).to.be.revertedWith("EL usuarion no a depositado")
+                await expect(ETHPoolDeploy.connect(user1).withdraw()).to.be.revertedWith("The user has not deposited")
             })
 
-            it("Entrega de depositos sin ganancias", async () => {
-                const { user1, ETHPoolDeploy, ganaciasDepositadas } = await dataETHPool()
+            it("Delivery of deposits without profit", async () => {
+                const { user1, ETHPoolDeploy, earningsDeposited } = await dataETHPool()
 
-                //await ethers.provider.send("evm_increaseTime", [(60 * 60 * 24 * 1)])
-                await ETHPoolDeploy.connect(user1).depositarEthUsuario({ value: ganaciasDepositadas })
+                await ETHPoolDeploy.connect(user1).depositEthUser({ value: earningsDeposited })
 
-                var balanceUsurAntes  =  await ethers.provider.getBalance(user1.address)
+                var balanceUsurBefore  =  await ethers.provider.getBalance(user1.address)
 
-                var tx = await ETHPoolDeploy.connect(user1).retirarDepositoMasGanancias()
+                var tx = await ETHPoolDeploy.connect(user1).withdraw()
 
                 const gasUsed: BigNumber = (await tx.wait()).gasUsed
                 const gasPrice: BigNumber = tx.gasPrice
                 var gasCost: BigNumber = gasUsed.mul(gasPrice)
 
-                var balanceUsurDespues  =  await ethers.provider.getBalance(user1.address)
+                var balanceUsurAfter  =  await ethers.provider.getBalance(user1.address)
 
-                expect(balanceUsurDespues).to.equal(balanceUsurAntes.add(ganaciasDepositadas).sub(gasCost))
+                expect(balanceUsurAfter).to.equal(balanceUsurBefore.add(earningsDeposited).sub(gasCost))
                                 
             })
 
-
-            // prueba con 4 usuarios 
-            // recompensa por parte del equipo 10 eth
-            // deposito por partde de los usuarios de manera aleatoria (entre 1 y 10 eth)
-            it("Entrega de rendimientos con depositos aleatorios", async () => {
+            // test with 4 users
+            // reward from team 10 eth
+            // I deposit by users randomly (between 1 and 10 eth)
+            it("Delivering returns with random deposits", async () => {
                 const { owner, user1, user2, user3, user4, ETHPoolDeploy } = await dataETHPool()
 
-                interface userDeposito {
+                interface IuserDeposit {
                     user: SignerWithAddress;
                     value: BigNumber;
                 }
 
                 const eth = ethers.constants.WeiPerEther;
 
-                var totalRecompensa: BigNumber = ethers.utils.parseEther("10")
+                var totalReward: BigNumber = ethers.utils.parseEther("10")
 
-                var userDepositoArray: userDeposito[] = new Array();
+                var userDepositArray: IuserDeposit[] = new Array();
 
                 var userArray: SignerWithAddress[] = [user1, user2, user3, user4]
 
-                var totalDespositoUsuario: BigNumber = ethers.constants.Zero;
+                var totalDespositUser: BigNumber = ethers.constants.Zero;
 
 
-
-                // deposito de usuario, cantidad de ETH al azar 
-                // valor entre 1 y 10 ETH
+                // user deposit, random amount of ETH
+                // value between 1 and 10 ETH
                 for (const item of userArray) {
-                    var depositoUsuario: BigNumber = ethers.utils.parseEther(
+                    var depositUser: BigNumber = ethers.utils.parseEther(
                         getRandomArbitrary(1, 10).toString())
 
-                    await ETHPoolDeploy.connect(item).depositarEthUsuario({
-                        value: depositoUsuario.toString()
+                    await ETHPoolDeploy.connect(item).depositEthUser({
+                        value: depositUser.toString()
                     })
 
-                    userDepositoArray.push({
+                    userDepositArray.push({
                         user: item,
-                        value: depositoUsuario,
+                        value: depositUser,
                     })
 
-                    totalDespositoUsuario = totalDespositoUsuario.add(depositoUsuario)
+                    totalDespositUser = totalDespositUser.add(depositUser)
                 }
 
 
-                // deposito del la recompensa por parte del equipo
+
+                // deposit of the reward by the team
                 await ethers.provider.send("evm_increaseTime", [(60 * 60 * 24 * 7) + 1])
 
-                await ETHPoolDeploy.connect(owner).depositarGananciasEquipo({
-                    value: totalRecompensa.toString()
+                await ETHPoolDeploy.connect(owner).depositRewardTeam({
+                    value: totalReward.toString()
                 })
 
 
 
-                // retiro de los usuarios 
-                for (const item of userDepositoArray) {
+                // user withdrawal
+                for (const item of userDepositArray) {
 
-                    var porcentajePool: BigNumber = item.value.mul(eth).div(totalDespositoUsuario)
+                    var percentagePool: BigNumber = item.value.mul(eth).div(totalDespositUser)
 
-                    var balanceUserAntes = await ethers.provider.getBalance(item.user.address)
+                    var balanceUserBefore = await ethers.provider.getBalance(item.user.address)
 
-                    var ganaciasMasDeposito: BigNumber =
-                        item.value.add(totalRecompensa.mul(porcentajePool).div(eth))
+                    var earningsAndDeposit: BigNumber =
+                        item.value.add(totalReward.mul(percentagePool).div(eth))
 
-                    var tx = await ETHPoolDeploy.connect(item.user).retirarDepositoMasGanancias()
+                    var tx = await ETHPoolDeploy.connect(item.user).withdraw()
 
-                    totalDespositoUsuario = totalDespositoUsuario.sub(item.value)
+                    totalDespositUser = totalDespositUser.sub(item.value)
 
-                    totalRecompensa = totalRecompensa.sub(totalRecompensa.mul(porcentajePool).div(eth))
+                    totalReward = totalReward.sub(totalReward.mul(percentagePool).div(eth))
 
                     const gasUsed: BigNumber = (await tx.wait()).gasUsed
                     const gasPrice: BigNumber = tx.gasPrice
                     var gasCost: BigNumber = gasUsed.mul(gasPrice)
 
-                    var balanceUsuario = await ethers.provider.getBalance(item.user.address)
+                    var balanceUser = await ethers.provider.getBalance(item.user.address)
 
-                    balanceUserAntes = balanceUserAntes.add(ganaciasMasDeposito.sub(gasCost))
+                    balanceUserBefore = balanceUserBefore.add(earningsAndDeposit.sub(gasCost))
 
-                    expect(balanceUserAntes).to.equal(balanceUsuario)
+                    expect(balanceUserBefore).to.equal(balanceUser)
                 }
 
             })
 
-            it("Retiro de depositos sin ganancias", async () => {
+            it("Withdrawal of deposits without profit", async () => {
                 const { owner, user1, user2, ETHPoolDeploy } = await dataETHPool()
 
 
-                var totalRecompensa: BigNumber = ethers.utils.parseEther("10")
+                var totalReward: BigNumber = ethers.utils.parseEther("10")
 
-                // valor entre 1 y 10 ETH
-                var depositoUsuario: BigNumber = ethers.utils.parseEther(
+                // value between 1 and 10 ETH
+                var depositUser: BigNumber = ethers.utils.parseEther(
                     getRandomArbitrary(1, 10).toString())
                 //------------------------------------------------------------
 
 
-                //deposito usuario1    
-                await ETHPoolDeploy.connect(user1).depositarEthUsuario({
-                    value: depositoUsuario.toString()
+                //deposit user1    
+                await ETHPoolDeploy.connect(user1).depositEthUser({
+                    value: depositUser.toString()
                 })
                 //------------------------------------------------------------
 
 
-                // deposito del la recompensa por parte del equipo
+                // deposit of the reward by the team
                 await ethers.provider.send("evm_increaseTime", [(60 * 60 * 24 * 7) + 1])
 
-                await ETHPoolDeploy.connect(owner).depositarGananciasEquipo({
-                    value: totalRecompensa.toString()
+                await ETHPoolDeploy.connect(owner).depositRewardTeam({
+                    value: totalReward.toString()
                 })
                 //------------------------------------------------------------                
 
 
-                //retiro usuario1 
-                //balance user1 - deposito - gas 
-                var balanceUsuario1Antes = await ethers.provider.getBalance(user1.address)
-                var tx = await ETHPoolDeploy.connect(user1).retirarDepositoMasGanancias()
+                //user1 withdrawal 
+                //balance user1 - deposit - gas
+
+                var balanceUser1Before = await ethers.provider.getBalance(user1.address)
+
+                var tx = await ETHPoolDeploy.connect(user1).withdraw()
                 const gasUsedUser1: BigNumber = (await tx.wait()).gasUsed
                 const gasPriceUser1: BigNumber = tx.gasPrice
                 var gasCost: BigNumber = gasUsedUser1.mul(gasPriceUser1)
 
-                balanceUsuario1Antes = balanceUsuario1Antes.add(totalRecompensa).add(depositoUsuario).sub(gasCost)
-                var balanceUsuario1Despues = await ethers.provider.getBalance(user1.address)
+                balanceUser1Before = balanceUser1Before.add(totalReward).add(depositUser).sub(gasCost)
 
-                expect(balanceUsuario1Antes).to.equal(balanceUsuario1Despues)
+                var balanceUser1After = await ethers.provider.getBalance(user1.address)
+
+                expect(balanceUser1Before).to.equal(balanceUser1After)
                 //------------------------------------------------------------
 
 
 
-                //deposito usuario2
-                await ETHPoolDeploy.connect(user2).depositarEthUsuario({
-                    value: depositoUsuario.toString()
+                //deposit user2
+                await ETHPoolDeploy.connect(user2).depositEthUser({
+                    value: depositUser.toString()
                 })
                 //------------------------------------------------------------
 
 
-                //retiro usuario2
-                var balanceUsuario2Antes = await ethers.provider.getBalance(user2.address)
-                var tx = await ETHPoolDeploy.connect(user2).retirarDepositoMasGanancias()
+                //user2 withdrawal
+                var balanceUser2Before = await ethers.provider.getBalance(user2.address)
+                var tx = await ETHPoolDeploy.connect(user2).withdraw()
                 const gasUsedUser2: BigNumber = (await tx.wait()).gasUsed
                 const gasPriceUser2: BigNumber = tx.gasPrice
                 var gasCostUser2: BigNumber = gasUsedUser2.mul(gasPriceUser2)
 
-                var balanceUsuario2Despues = await ethers.provider.getBalance(user2.address)
-                balanceUsuario2Antes = balanceUsuario2Antes.add(depositoUsuario).sub(gasCostUser2)
+                var balanceUser2After = await ethers.provider.getBalance(user2.address)
+                balanceUser2Before = balanceUser2Before.add(depositUser).sub(gasCostUser2)
 
-                expect(balanceUsuario2Antes).to.equal(balanceUsuario2Despues)
+                expect(balanceUser2Before).to.equal(balanceUser2After)
                 //------------------------------------------------------------
 
 
