@@ -1,109 +1,154 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.0;
 
+    ///@title ETHPool Challenge
+    ///@author Jeisson Niño
+    /**
+    @notice ETHPool provides a service where 
+    people can deposit ETH and they will receive weekly rewards
+    */   
 contract ETHPool {
-    //state variable
-    uint256 public ultimaFechaRecompensa;
-    uint256 public totalRecompensa;
-    uint256 public totalDepositosUsuarios;
+    
+    
 
-    struct detalleUsuario {
-        uint256 deposito;
-        uint256 fechaDeposito;
+    uint256 public lastRewardDate;
+
+    /**@dev    
+    They are used to carry the total of 
+    these values ​​and thus not have to make arrangement tours
+    */
+    uint256 public totalReward;
+    uint256 public totalUserDeposits;
+
+    struct detailUser {
+        uint256 deposit;
+        uint256 dateDeposit;
     }
+    mapping(address => detailUser) public users;
 
-    mapping(address => detalleUsuario) public usuarios;
+    mapping(address => bool) public usersTeam;
 
-    mapping(address => bool) public usuariosEquipo;
-
-    //event
-    event DepositoGananciasEquipo(
-        address _from,
-        uint256 _valor,
-        uint256 _fecha
+    ///@dev Emitted when the team deposits the winnings
+    ///@param from The address of the user who deposits
+    ///@param value ETH value sent by user
+    ///@param date date when the deposit is made
+    event DepositRewardTeam(
+        address from,
+        uint256 value,
+        uint256 date
     );
-    event DepositoEthUsuario(address _from, uint256 _valor, uint256 _fecha);
-    event RetirarGanancias(address _from, uint256 _valor, uint256 _fecha);
 
-    //modifier
-    modifier soloEquipo() {
+
+    ///@dev Emitted when the team deposits the winnings
+    ///@param from The address of the team who deposits
+    ///@param value ETH value sent by team
+    ///@param date date when the deposit is made
+    event DepositEthUser(
+        address from, 
+        uint256 value, 
+        uint256 date);
+
+
+    ///@dev Emitted when the user withdraws
+    ///@param from The address of the user making the withdrawal
+    ///@param value ETH withdrawn value
+    ///@param date date of when the withdrawal is made
+    event Withdraw(
+        address from,
+        uint256 value,
+        uint256 date);
+
+
+    modifier onlyTeam() {
         require(
-            usuariosEquipo[msg.sender] == true,
-            "Funcion exclusiva del equipo"
+            usersTeam[msg.sender] == true,
+            "Exclusive function of the team"
         );
         _;
     }
+  
 
-    //constructor
+    
     constructor() {
-        ultimaFechaRecompensa = block.timestamp;
-        usuariosEquipo[msg.sender] = true;
+        lastRewardDate = block.timestamp;
+        usersTeam[msg.sender] = true;
     }
 
-    //funtion
-    function depositarGananciasEquipo() public payable soloEquipo {
+
+    function depositRewardTeam() public payable onlyTeam {
         require(
-            block.timestamp > (ultimaFechaRecompensa + 1 weeks),
-            "No ha pasado una semana!"
+            block.timestamp > (lastRewardDate + 1 weeks),
+            "It hasn't been a week"
         );
         
-        totalRecompensa += msg.value;
-        ultimaFechaRecompensa = block.timestamp;
-        emit DepositoGananciasEquipo(
+        totalReward += msg.value;
+        lastRewardDate = block.timestamp;
+        emit DepositRewardTeam(
             msg.sender,
             msg.value,
             block.timestamp
         );
     }
 
-    function depositarEthUsuario() public payable {
+    function depositEthUser() public payable {
       
-        usuarios[msg.sender].deposito += msg.value;
-        usuarios[msg.sender].fechaDeposito = block.timestamp;
+        users[msg.sender].deposit += msg.value;
+        users[msg.sender].dateDeposit = block.timestamp;
 
-        totalDepositosUsuarios += msg.value;
+        totalUserDeposits += msg.value;
 
-        emit DepositoEthUsuario(msg.sender, msg.value,  block.timestamp);
+        emit DepositEthUser(msg.sender, msg.value,  block.timestamp);
     }
 
-    function retirarDepositoMasGanancias() public {
+
+
+    /**@dev        
+    Withdrawal of winnings plus the deposit 
+    is allowed if the user blocked the ETH before 
+    the team deposited the winnings into the contract. 
+    if not and you have blocked ETH, you can withdraw it.
+
+    The percentage is handled using the state variables. 
+    The treatment of converting decimals into integers is done
+    */ 
+    function withdraw() public {
       
         require(
-            usuarios[msg.sender].deposito > 0,
-            "EL usuarion no a depositado"
+            users[msg.sender].deposit > 0,
+            "The user has not deposited"
         );
+       
+        if (users[msg.sender].dateDeposit < lastRewardDate) {
+            uint256 porcentagePool = (users[msg.sender].deposit * 1 ether) /
+                totalUserDeposits;
 
-        if (usuarios[msg.sender].fechaDeposito < ultimaFechaRecompensa) {
-            uint256 porcentajePool = (usuarios[msg.sender].deposito * 1 ether) /
-                totalDepositosUsuarios;
-
-            uint256 ganaciasMasDeposito = usuarios[msg.sender].deposito +
-                (totalRecompensa * porcentajePool) /
+            uint256 earningsAndDeposit = users[msg.sender].deposit +
+                (totalReward * porcentagePool) /
                 1 ether;
 
-            totalDepositosUsuarios -= usuarios[msg.sender].deposito;
+            totalUserDeposits -= users[msg.sender].deposit;
 
-            totalRecompensa =
-                totalRecompensa -
-                (totalRecompensa * porcentajePool) /
+            totalReward =
+                totalReward -
+                (totalReward * porcentagePool) /
                 1 ether;
 
-            usuarios[msg.sender].deposito = 0;
+            users[msg.sender].deposit = 0;
 
             (bool success, ) = payable(msg.sender).call{
-                value: ganaciasMasDeposito
+                value: earningsAndDeposit
             }("");
 
             require(success, "Transfer failed");
 
-            emit RetirarGanancias(
+            emit Withdraw(
                 msg.sender,
-                ganaciasMasDeposito,
+                earningsAndDeposit,
                 block.timestamp
             );
         } else {
             (bool success, ) = payable(msg.sender).call{
-                value: usuarios[msg.sender].deposito
+                value: users[msg.sender].deposit
             }("");
 
             require(success, "Transfer failed");
